@@ -17,6 +17,7 @@ func newStore() *store {
 	s.events = make([]*event, 0)
 	s.indices = make(map[string]map[string][]*event)
 	s.indices["user"] = make(map[string][]*event)
+	s.indices["envName"] = make(map[string][]*event)
 
 	return s
 }
@@ -35,6 +36,7 @@ func (s *store) listen(evs <-chan event) {
 
 		s.events = append(s.events, &e)
 		s._addToIndex("user", e.user, &e)
+		s._addToIndex("envName", e.envName, &e)
 
 		s.mux.Unlock()
 	}
