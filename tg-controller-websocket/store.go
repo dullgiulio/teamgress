@@ -3,31 +3,33 @@ package main
 import (
 	"sync"
 	"time"
+
+	tg "github.com/dullgiulio/teamgress/libteamgress"
 )
 
 type listener struct {
 	accept filter
-	ch     chan<- event
+	ch     chan<- tg.Event
 }
 
 type store struct {
-	events      []event
-	conf        *conf
+	events      []tg.Event
+	conf        *tg.Conf
 	mux         *sync.Mutex
 	listeners   map[*listener]struct{}
 	listenersCh chan *listener
-	eventsCh    chan event
+	eventsCh    chan tg.Event
 	timeout     time.Duration
 }
 
-func newStore(conf *conf) *store {
+func newStore(conf *tg.Conf) *store {
 	s := &store{
 		mux:         &sync.Mutex{},
 		conf:        conf,
-		events:      make([]event, 0),
+		events:      make([]tg.Event, 0),
 		listeners:   make(map[*listener]struct{}),
 		listenersCh: make(chan *listener),
-		eventsCh:    make(chan event, 5), // Can use some buffering here.
+		eventsCh:    make(chan tg.Event, 5), // Can use some buffering here.
 		timeout:     time.Millisecond * 500,
 	}
 
@@ -68,7 +70,7 @@ func (s *store) handleCancelled() {
 	}
 }
 
-func (s *store) listen(evs <-chan event) {
+func (s *store) listen(evs <-chan tg.Event) {
 	for e := range evs {
 		// Copy the event in the store
 		s.mux.Lock()
@@ -79,9 +81,9 @@ func (s *store) listen(evs <-chan event) {
 	}
 }
 
-func (s *store) stream(evs chan<- event, accept filter) *listener {
+func (s *store) stream(evs chan<- tg.Event, accept filter) *listener {
 	s.mux.Lock()
-	events := make([]event, len(s.events))
+	events := make([]tg.Event, len(s.events))
 	copy(events, s.events)
 	s.mux.Unlock()
 
@@ -103,10 +105,10 @@ func (s *store) stream(evs chan<- event, accept filter) *listener {
 	return l
 }
 
-type filter func(event) bool
+type filter func(tg.Event) bool
 
 func getByUser(user string) filter {
-	return func(e event) bool {
+	return func(e tg.Event) bool {
 		return e.User.UnixName == user
 	}
 }
@@ -114,7 +116,7 @@ func getByUser(user string) filter {
 func getFromTime(time time.Time) filter {
 	unixTime := time.Unix()
 
-	return func(e event) bool {
+	return func(e tg.Event) bool {
 		return e.Time.Unix() >= unixTime
 	}
 }

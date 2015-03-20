@@ -1,31 +1,25 @@
-package main
+package libteamgress
 
 import (
 	"bufio"
 	"encoding/json"
 	"log"
 	"os"
-	"sync"
 )
 
-type conf struct {
+type Conf struct {
 	Users         []*User `json:"users"`
 	indexUsername map[string]*User
-	mux           *sync.Mutex
 }
 
-func newConf() *conf {
-	return &conf{
-		mux:           &sync.Mutex{},
+func NewConf() *Conf {
+	return &Conf{
 		indexUsername: make(map[string]*User),
 		Users:         make([]*User, 0),
 	}
 }
 
-func (c *conf) loadFile(filename string) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
+func (c *Conf) LoadFile(filename string) {
 	if err := c._loadJSON(filename); err != nil {
 		log.Print(err)
 	} else {
@@ -33,7 +27,7 @@ func (c *conf) loadFile(filename string) {
 	}
 }
 
-func (c *conf) _loadJSON(filename string) error {
+func (c *Conf) _loadJSON(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err

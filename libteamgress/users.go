@@ -1,4 +1,4 @@
-package main
+package libteamgress
 
 type User struct {
 	Name      string `json:"name"`
@@ -11,16 +11,13 @@ func (u *User) String() string {
 	return u.Name
 }
 
-func (c *conf) _indexByUsername() {
+func (c *Conf) _indexByUsername() {
 	for _, u := range c.Users {
 		c.indexUsername[u.UnixName] = u
 	}
 }
 
-func (c *conf) getByUsername(username string) User {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
+func (c *Conf) GetByUsername(username string) User {
 	if u, found := c.indexUsername[username]; found {
 		return *u
 	}
