@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"time"
+    "io"
+    "bufio"
 
 	tg "github.com/dullgiulio/teamgress/libteamgress"
 )
@@ -28,6 +30,28 @@ func _test(s *store) {
 }
 
 // TODO: Read input and generate Events
+func readEvents(r io.Reader, evs chan<- tg.Event) {
+    defer close(evs)
+
+    reader := bufio.NewReader(r)
+
+    for {
+        text, err := reader.ReadBytes('\n')
+        
+        switch err {
+        case io.EOF:
+            break
+        case nil:
+            e, err := tg.EventFromJSON(text)
+            
+            if err != nil {
+                log.Print(err)
+            } else {
+                evs <- *e
+            }
+        }
+    }
+}
 
 func main() {
 	if len(os.Args) < 1 {
@@ -45,6 +69,8 @@ func main() {
 	go store.handleCancelled()
 	// Broadcast events to all listeners.
 	go store.broadcast()
+
+    go readEvents(os.Stdin, evs)
 
 	// Example of handler.
 	go _test(store)

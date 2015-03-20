@@ -57,7 +57,7 @@ func importEvents(files []string, evs chan tg.Event, conf *tg.Conf) {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("Must specify a confguration file and which files to follow.")
+		log.Fatal("Must specify a configuration file and which files to follow.")
 	}
 
 	conf := tg.NewConf()

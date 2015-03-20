@@ -22,7 +22,7 @@ func NewEvent() *Event {
 }
 
 func (e *Event) String() string {
-	return fmt.Sprintf("%s: %s.%s '%s': [%s] %s", e.Time.Format(time.RFC3339), e.EnvName, e.EnvStage, &e.User, e.Type, e.Data)
+	return fmt.Sprintf("%s: %s.%s '%s': %s [%s] %s", e.Time.Format(time.RFC3339), e.EnvName, e.EnvStage, &e.User, e.Level, e.Type, e.Data)
 }
 
 func (e *Event) Emit() {
@@ -30,14 +30,20 @@ func (e *Event) Emit() {
 	fmt.Printf("%s\n", e.ToJSON())
 }
 
-func (e *Event) ToJSON() string {
+func (e *Event) ToJSON() []byte {
 	if b, err := json.Marshal(e); err == nil {
-		return string(b)
+		return b
 	}
 
-	return ""
+	return []byte("")
 }
 
-func (e *Event) FromJSON(str string) {
-	// TODO
+func EventFromJSON(data []byte) (*Event, error) {
+    e := NewEvent()
+
+    if err := json.Unmarshal(data, e); err != nil {
+        return nil, err
+    }
+
+    return e, nil
 }
