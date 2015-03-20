@@ -1,4 +1,4 @@
-* Multiple binary commands with library
+* Move store code into lib.
 * Main binary export websocket and REST interface
 * Ensure JSON is single line in events (\n to \u0010?)
 * Informative logging
