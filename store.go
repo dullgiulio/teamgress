@@ -5,90 +5,116 @@ import (
 	"time"
 )
 
+type listener struct {
+	accept filter
+	ch     chan<- event
+}
+
 type store struct {
-	events   []event
-	conf     *conf
-	indicesS map[string]map[string][]*event
-	indicesI map[string]map[int64][]*event
-	mux      *sync.Mutex
+	events      []event
+	conf        *conf
+	mux         *sync.Mutex
+	listeners   map[*listener]struct{}
+	listenersCh chan *listener
+	eventsCh    chan event
+	timeout     time.Duration
 }
 
 func newStore(conf *conf) *store {
 	s := &store{
-		mux:      &sync.Mutex{},
-		conf:     conf,
-		events:   make([]event, 0),
-		indicesS: make(map[string]map[string][]*event),
-		indicesI: make(map[string]map[int64][]*event),
+		mux:         &sync.Mutex{},
+		conf:        conf,
+		events:      make([]event, 0),
+		listeners:   make(map[*listener]struct{}),
+		listenersCh: make(chan *listener),
+		eventsCh:    make(chan event, 5), // Can use some buffering here.
+		timeout:     time.Millisecond * 500,
 	}
-
-	s.indicesS["user"] = make(map[string][]*event)
-	s.indicesS["envName"] = make(map[string][]*event)
-	s.indicesI["time"] = make(map[int64][]*event)
 
 	return s
 }
 
-func (s *store) _addToIndexString(index, key string, e *event) {
-	if _, found := s.indicesS[index][key]; !found {
-		s.indicesS[index][key] = make([]*event, 0)
-	}
-
-	s.indicesS[index][key] = append(s.indicesS[index][key], e)
+func (s *store) cancel(l *listener) {
+	s.listenersCh <- l
 }
 
-func (s *store) _addToIndexInt64(index string, key int64, e *event) {
-	if _, found := s.indicesI[index][key]; !found {
-		s.indicesI[index][key] = make([]*event, 0)
-	}
-
-	s.indicesI[index][key] = append(s.indicesI[index][key], e)
-}
-
-func (s *store) listen(evs <-chan event) {
-	for e := range evs {
+func (s *store) broadcast() {
+	for e := range s.eventsCh {
 		s.mux.Lock()
 
-		// Copy the event in the store.
-		s.events = append(s.events, e)
-		// Point to the copy in the indices.
-		ep := &s.events[len(s.events)-1]
-
-		s._addToIndexString("user", e.User.UnixName, ep)
-		s._addToIndexString("envName", e.EnvName, ep)
-		s._addToIndexInt64("time", e.Time.Unix(), ep)
+		for l, _ := range s.listeners {
+			if l.accept(e) {
+				// A client can only listen to a s.timeout periond of time
+				// or it will be skipped. The storage will be locked for
+				// s.timeout * len(s.listeners) at max.
+				select {
+				case l.ch <- e:
+				case <-time.After(s.timeout):
+				}
+			}
+		}
 
 		s.mux.Unlock()
 	}
 }
 
-func (s *store) getByUser(user string, ch chan<- event) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	defer close(ch)
+func (s *store) handleCancelled() {
+	for l := range s.listenersCh {
+		s.mux.Lock()
+		delete(s.listeners, l)
+		s.mux.Unlock()
 
-	events, found := s.indicesS["user"][user]
-	if !found {
-		return
-	}
-
-	for _, e := range events {
-		ch <- *e
+		close(l.ch)
 	}
 }
 
-func (s *store) getFromTime(time time.Time, ch chan<- event) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	defer close(ch)
+func (s *store) listen(evs <-chan event) {
+	for e := range evs {
+		// Copy the event in the store
+		s.mux.Lock()
+		s.events = append(s.events, e)
+		s.mux.Unlock()
 
+		s.eventsCh <- e
+	}
+}
+
+func (s *store) stream(evs chan<- event, accept filter) *listener {
+	s.mux.Lock()
+	events := make([]event, len(s.events))
+	copy(events, s.events)
+	s.mux.Unlock()
+
+	for _, e := range events {
+		if accept(e) {
+			evs <- e
+		}
+	}
+
+	l := &listener{
+		ch:     evs,
+		accept: accept,
+	}
+
+	s.mux.Lock()
+	s.listeners[l] = struct{}{}
+	s.mux.Unlock()
+
+	return l
+}
+
+type filter func(event) bool
+
+func getByUser(user string) filter {
+	return func(e event) bool {
+		return e.User.UnixName == user
+	}
+}
+
+func getFromTime(time time.Time) filter {
 	unixTime := time.Unix()
 
-	for k, events := range s.indicesI["time"] {
-		if k >= unixTime {
-			for _, e := range events {
-				ch <- *e
-			}
-		}
+	return func(e event) bool {
+		return e.Time.Unix() >= unixTime
 	}
 }

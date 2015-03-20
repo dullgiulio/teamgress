@@ -22,16 +22,28 @@ func tailFile(file string, evs chan<- event, conf *conf) {
 	}
 }
 
-func _test(s *store) {
-	<-time.After(1 * time.Second)
+func importEvents(files []string, evs chan<- event, conf *conf) {
+	for _, file := range files {
+		go tailFile(file, evs, conf)
+	}
+}
 
+// TODO: Implement this as a WebSocket handler.
+func _test(s *store) {
 	evs := make(chan event)
-	//go s.getByUser("giotti", evs)
-	go s.getFromTime(time.Now().AddDate(0, 0, -1), evs)
+	filter := getFromTime(time.Now().AddDate(0, 0, -1))
+	listener := s.stream(evs, filter)
+
+	go func() {
+		<-time.After(5 * time.Second)
+		s.cancel(listener)
+	}()
 
 	for e := range evs {
 		fmt.Printf("%s\n", e.JSON())
 	}
+
+	fmt.Printf("_test has exited\n")
 }
 
 func main() {
@@ -44,15 +56,24 @@ func main() {
 
 	files := os.Args[2:]
 
-	store := newStore(conf)
 	evs := make(chan event)
 
-	for _, file := range files {
-		go tailFile(file, evs, conf)
-	}
+	// Will start a routine for each file.
+	importEvents(files, evs, conf)
 
+	// Start store handler.
+	store := newStore(conf)
+	// Remove listeners when the are cancelled.
+	go store.handleCancelled()
+	// Broadcast events to all listeners.
+	go store.broadcast()
+
+	// Example of handler.
 	go _test(store)
 
+	// Listen to events. Never returns.
+	// XXX: This can go in the background; the main thread will handle the connections.
 	store.listen(evs)
+
 	os.Exit(1)
 }
