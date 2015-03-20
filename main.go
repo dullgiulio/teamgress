@@ -1,55 +1,13 @@
 package main
 
 import (
-	"os"
 	"fmt"
 	"log"
+	"os"
 	"time"
-	"strings"
-	"strconv"
 
 	"github.com/ActiveState/tail"
 )
-
-type event struct {
-	uuid string
-	time time.Time
-	user string
-	envName string
-	envStage string
-	cmd string
-	data string
-}
-
-func makeEvent(str string) event {
-	split := strings.SplitN(str, " ", 6)
-	e := event{}
-
-	e.uuid = split[0]
-
-	if unixTime, err := strconv.ParseInt(split[1], 10, 0); err == nil {
-		e.time = time.Unix(int64(unixTime), 0)
-	}
-
-	e.user = split[2]
-	env := strings.SplitN(split[3], ".", 2)
-	e.envName = env[0]
-	e.envStage = env[1]
-	e.cmd = split[4]
-	e.data = split[5]
-
-	return e
-}
-
-func (e *event) String() string {
-	return fmt.Sprintf("%s: %s.%s %s: [%s] %s", e.time.Format(time.RFC3339), e.envName, e.envStage, e.user, e.cmd, e.data)
-}
-
-func printEvents(evs <-chan event) {
-	for e := range evs {
-		fmt.Printf("%s\n", &e)
-	}
-}
 
 func tailFile(file string, evs chan<- event) {
 	t, err := tail.TailFile(file, tail.Config{Follow: true})
@@ -58,7 +16,21 @@ func tailFile(file string, evs chan<- event) {
 	}
 
 	for line := range t.Lines {
+		// TODO: Maybe only filter the events in the last N days?
 		evs <- makeEvent(line.Text)
+	}
+}
+
+func _test(s *store) {
+	<-time.After(1 * time.Second)
+
+	fmt.Printf("Do query\n")
+
+	evs := make(chan event)
+	go s.getByUser("giotti", evs)
+
+	for e := range evs {
+		fmt.Printf("%s\n", &e)
 	}
 }
 
@@ -69,13 +41,15 @@ func main() {
 		log.Fatal("Must specify which files to follow.")
 	}
 
+	store := newStore()
 	evs := make(chan event)
 
 	for _, file := range files {
 		go tailFile(file, evs)
 	}
 
-	printEvents(evs)
+	go _test(store)
 
+	store.listen(evs)
 	os.Exit(1)
 }
