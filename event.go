@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,35 +9,43 @@ import (
 )
 
 type event struct {
-	uuid     string
-	time     time.Time
-	user     string
-	envName  string
-	envStage string
-	cmd      string
-	data     string
+	UUID     string    `json:"id"`
+	Time     time.Time `json:"time"`
+	User     User      `json:"user"`
+	EnvName  string    `json:"environment"`
+	EnvStage string    `json:"stage"`
+	Cmd      string    `json:"command"`
+	Data     string    `json:"data"`
 }
 
-func makeEvent(str string) event {
+func newEvent(str string, conf *conf) *event {
 	split := strings.SplitN(str, " ", 6)
-	e := event{}
+	e := &event{}
 
-	e.uuid = split[0]
+	e.UUID = split[0]
 
 	if unixTime, err := strconv.ParseInt(split[1], 10, 0); err == nil {
-		e.time = time.Unix(int64(unixTime), 0)
+		e.Time = time.Unix(int64(unixTime), 0)
 	}
 
-	e.user = split[2]
+	e.User = conf.getByUsername(split[2])
 	env := strings.SplitN(split[3], ".", 2)
-	e.envName = env[0]
-	e.envStage = env[1]
-	e.cmd = split[4]
-	e.data = split[5]
+	e.EnvName = env[0]
+	e.EnvStage = env[1]
+	e.Cmd = split[4]
+	e.Data = split[5]
 
 	return e
 }
 
 func (e *event) String() string {
-	return fmt.Sprintf("%s: %s.%s %s: [%s] %s", e.time.Format(time.RFC3339), e.envName, e.envStage, e.user, e.cmd, e.data)
+	return fmt.Sprintf("%s: %s.%s '%s': [%s] %s", e.Time.Format(time.RFC3339), e.EnvName, e.EnvStage, &e.User, e.Cmd, e.Data)
+}
+
+func (e *event) JSON() string {
+	if b, err := json.Marshal(e); err == nil {
+		return string(b)
+	}
+
+	return ""
 }

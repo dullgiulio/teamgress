@@ -9,7 +9,7 @@ import (
 	"github.com/ActiveState/tail"
 )
 
-func tailFile(file string, evs chan<- event) {
+func tailFile(file string, evs chan<- event, conf *conf) {
 	t, err := tail.TailFile(file, tail.Config{Follow: true})
 	if err != nil {
 		log.Fatal(err)
@@ -17,35 +17,38 @@ func tailFile(file string, evs chan<- event) {
 
 	for line := range t.Lines {
 		// TODO: Maybe only filter the events in the last N days?
-		evs <- makeEvent(line.Text)
+		e := newEvent(line.Text, conf)
+		evs <- *e
 	}
 }
 
 func _test(s *store) {
 	<-time.After(1 * time.Second)
 
-	fmt.Printf("Do query\n")
-
 	evs := make(chan event)
-	go s.getByUser("giotti", evs)
+	//go s.getByUser("giotti", evs)
+	go s.getFromTime(time.Now().AddDate(0, 0, -1), evs)
 
 	for e := range evs {
-		fmt.Printf("%s\n", &e)
+		fmt.Printf("%s\n", e.JSON())
 	}
 }
 
 func main() {
-	files := os.Args[1:]
-
-	if len(files) == 0 {
+	if len(os.Args) < 2 {
 		log.Fatal("Must specify which files to follow.")
 	}
 
-	store := newStore()
+	conf := newConf()
+	conf.loadFile(os.Args[1])
+
+	files := os.Args[2:]
+
+	store := newStore(conf)
 	evs := make(chan event)
 
 	for _, file := range files {
-		go tailFile(file, evs)
+		go tailFile(file, evs, conf)
 	}
 
 	go _test(store)
