@@ -20,19 +20,14 @@ func _test(s *store) {
 	go func() {
 		<-time.After(5 * time.Second)
 		s.cancel(listener)
-		fmt.Printf("Cancelled\n")
 	}()
-
-	fmt.Printf("Start reading events\n")
 
 	for e := range evs {
 		fmt.Printf("%s\n", e.ToJSON())
 	}
-
-	fmt.Printf("Finished reading events\n")
 }
 
-// TODO: Read input and generate Events
+// Read input and generate Events
 func readEvents(r io.Reader, evs chan<- tg.Event) {
 	defer close(evs)
 
