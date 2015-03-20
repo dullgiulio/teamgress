@@ -81,26 +81,34 @@ func (s *store) listen(evs <-chan tg.Event) {
 	}
 }
 
-func (s *store) stream(evs chan<- tg.Event, accept filter) *listener {
-	s.mux.Lock()
-	events := make([]tg.Event, len(s.events))
-	copy(events, s.events)
-	s.mux.Unlock()
-
-	for _, e := range events {
-		if accept(e) {
-			evs <- e
-		}
-	}
-
+func (s *store) subscribe(evs chan<- tg.Event, accept filter) *listener {
 	l := &listener{
 		ch:     evs,
 		accept: accept,
 	}
 
-	s.mux.Lock()
-	s.listeners[l] = struct{}{}
-	s.mux.Unlock()
+	go func() {
+		s.mux.Lock()
+		events := make([]tg.Event, len(s.events))
+		copy(events, s.events)
+		s.mux.Unlock()
+
+		for _, e := range events {
+			if accept(e) {
+				// A client can only listen to a s.timeout periond of time
+				// or it will be skipped.
+				select {
+				case evs <- e:
+				case <-time.After(s.timeout):
+				}
+			}
+		}
+
+		s.mux.Lock()
+		s.listeners[l] = struct{}{}
+		s.mux.Unlock()
+
+	}()
 
 	return l
 }
