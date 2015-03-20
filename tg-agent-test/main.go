@@ -25,10 +25,10 @@ func makeEvent(conf *tg.Conf) *tg.Event {
 func emitEvents(conf *tg.Conf) {
 	for {
 		e := makeEvent(conf)
-        e.Emit()
+		e.Emit()
 
-        <-time.After(1 * time.Second)
-    }
+		<-time.After(1 * time.Second)
+	}
 }
 
 func main() {

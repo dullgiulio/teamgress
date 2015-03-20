@@ -39,11 +39,11 @@ func (e *Event) ToJSON() []byte {
 }
 
 func EventFromJSON(data []byte) (*Event, error) {
-    e := NewEvent()
+	e := NewEvent()
 
-    if err := json.Unmarshal(data, e); err != nil {
-        return nil, err
-    }
+	if err := json.Unmarshal(data, e); err != nil {
+		return nil, err
+	}
 
-    return e, nil
+	return e, nil
 }
