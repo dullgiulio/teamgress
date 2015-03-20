@@ -1,0 +1,7 @@
+* Multiple binary commands with library
+* Main binary export websocket and REST interface
+* Ensure JSON is single line in events (\n to \u0010?)
+* Informative logging
+* Async garbage collection
+* Flags for main binary
+* Integrate TYPO3 log cat
