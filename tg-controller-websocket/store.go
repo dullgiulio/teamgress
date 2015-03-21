@@ -13,24 +13,26 @@ type listener struct {
 }
 
 type store struct {
-	events      []tg.Event
+	buckets     map[int64][]tg.Event
 	conf        *tg.Conf
 	mux         *sync.Mutex
 	listeners   map[*listener]struct{}
 	listenersCh chan *listener
 	eventsCh    chan tg.Event
 	timeout     time.Duration
+	bucketSecs  int64
 }
 
 func newStore(conf *tg.Conf) *store {
 	s := &store{
 		mux:         &sync.Mutex{},
 		conf:        conf,
-		events:      make([]tg.Event, 0),
+		buckets:     make(map[int64][]tg.Event, 0),
 		listeners:   make(map[*listener]struct{}),
 		listenersCh: make(chan *listener),
 		eventsCh:    make(chan tg.Event, 5), // Can use some buffering here.
-		timeout:     time.Millisecond * 500,
+		timeout:     time.Millisecond * 500, // TODO: From config
+		bucketSecs:  10,                     // TODO: From config
 	}
 
 	return s
@@ -45,15 +47,8 @@ func (s *store) broadcast() {
 		s.mux.Lock()
 
 		for l, _ := range s.listeners {
-			if l.accept(e) {
-				// A client can only listen to a s.timeout periond of time
-				// or it will be skipped. The storage will be locked for
-				// s.timeout * len(s.listeners) at max.
-				select {
-				case l.ch <- e:
-				case <-time.After(s.timeout):
-				}
-			}
+			// The storage will be locked for s.timeout * len(s.listeners) at max.
+			l.emitEvent(e, s.timeout)
 		}
 
 		s.mux.Unlock()
@@ -70,15 +65,88 @@ func (s *store) handleCancelled() {
 	}
 }
 
+func (s *store) _addToBucket(e tg.Event) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	eTime := e.Time.Unix()
+	key := eTime - (eTime % s.bucketSecs)
+
+	if _, found := s.buckets[key]; !found {
+		s.buckets[key] = make([]tg.Event, 1)
+	}
+
+	s.buckets[key] = append(s.buckets[key], e)
+}
+
+func (s *store) _getBucket(key int64) (t []tg.Event) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	if events, found := s.buckets[key]; found {
+		t = make([]tg.Event, len(events))
+		copy(t, events)
+	}
+
+	return t
+}
+
 func (s *store) listen(evs <-chan tg.Event) {
 	for e := range evs {
 		// Copy the event in the store
-		s.mux.Lock()
-		s.events = append(s.events, e)
-		s.mux.Unlock()
+		s._addToBucket(e)
 
 		s.eventsCh <- e
 	}
+}
+
+func (s *store) _addListener(l *listener) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	s.listeners[l] = struct{}{}
+}
+
+func (s *store) _bucketsKeys() (keys []int64) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	keys = make([]int64, len(s.buckets))
+	for k, _ := range s.buckets {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (l *listener) emitEvent(event tg.Event, timeout time.Duration) {
+	if l.accept(event) {
+		// A client can only listen to a s.timeout periond of time
+		// or it will be skipped. The storage will be locked for
+		// s.timeout * len(s.listeners) at max.
+		select {
+		case l.ch <- event:
+		case <-time.After(timeout):
+		}
+	}
+}
+
+func (s *store) startListener(l *listener) {
+	bucketsKeys := s._bucketsKeys()
+
+	for _, key := range bucketsKeys {
+		events := s._getBucket(key)
+
+		if events == nil {
+			continue
+		}
+
+		for _, e := range events {
+			l.emitEvent(e, s.timeout)
+		}
+	}
+
+	s._addListener(l)
 }
 
 func (s *store) subscribe(evs chan<- tg.Event, accept filter) *listener {
@@ -87,28 +155,7 @@ func (s *store) subscribe(evs chan<- tg.Event, accept filter) *listener {
 		accept: accept,
 	}
 
-	go func() {
-		s.mux.Lock()
-		events := make([]tg.Event, len(s.events))
-		copy(events, s.events)
-		s.mux.Unlock()
-
-		for _, e := range events {
-			if accept(e) {
-				// A client can only listen to a s.timeout periond of time
-				// or it will be skipped.
-				select {
-				case evs <- e:
-				case <-time.After(s.timeout):
-				}
-			}
-		}
-
-		s.mux.Lock()
-		s.listeners[l] = struct{}{}
-		s.mux.Unlock()
-
-	}()
+	go s.startListener(l)
 
 	return l
 }
