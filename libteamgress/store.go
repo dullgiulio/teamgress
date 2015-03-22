@@ -1,6 +1,7 @@
 package libteamgress
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -19,6 +20,7 @@ type Store struct {
 	eventsCh    chan Event
 	timeout     time.Duration
 	bucketSecs  int64
+	bucketMax   int
 }
 
 func NewStore(conf *Conf) *Store {
@@ -30,7 +32,8 @@ func NewStore(conf *Conf) *Store {
 		ListenersCh: make(chan *Listener),
 		eventsCh:    make(chan Event, 5),    // Can use some buffering here.
 		timeout:     time.Millisecond * 500, // TODO: From config
-		bucketSecs:  10,                     // TODO: From config
+		bucketSecs:  3600,                   // TODO: From config
+		bucketMax:   24,                     // TODO: From config
 	}
 
 	// Remove listeners when the are cancelled.
@@ -68,6 +71,16 @@ func (s *Store) handleCancelled() {
 	}
 }
 
+func (s *Store) _deleteOldest() {
+	keys := s._bucketsKeys()
+
+	if len(keys) > s.bucketMax {
+		key := keys[0]
+		s.buckets[key] = nil
+		delete(s.buckets, key)
+	}
+}
+
 func (s *Store) addToBucket(e Event) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -76,7 +89,8 @@ func (s *Store) addToBucket(e Event) {
 	key := eTime - (eTime % s.bucketSecs)
 
 	if _, found := s.buckets[key]; !found {
-		s.buckets[key] = make([]Event, 1)
+		s._deleteOldest()
+		s.buckets[key] = make([]Event, 0)
 	}
 
 	s.buckets[key] = append(s.buckets[key], e)
@@ -110,16 +124,25 @@ func (s *Store) addListener(l *Listener) {
 	s.Listeners[l] = struct{}{}
 }
 
-func (s *Store) bucketsKeys() (keys []int64) {
+func (s *Store) _bucketsKeys() (keys []int64) {
+	keys = make([]int64, len(s.buckets))
+	i := 0
+
+	for k, _ := range s.buckets {
+		keys[i] = k
+		i += 1
+	}
+
+	sort.Sort(Int64Slice(keys))
+
+	return keys
+}
+
+func (s *Store) bucketsKeys() []int64 {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	keys = make([]int64, len(s.buckets))
-	for k, _ := range s.buckets {
-		keys = append(keys, k)
-	}
-
-	return keys
+	return s._bucketsKeys()
 }
 
 func (l *Listener) emitEvent(event Event, timeout time.Duration) {
