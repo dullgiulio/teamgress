@@ -10,14 +10,13 @@ import (
 )
 
 type Event struct {
-	ID       string    `json:"id"`
-	Time     time.Time `json:"time"`
-	User     User      `json:"user"`
-	EnvName  string    `json:"environment"`
-	EnvStage string    `json:"stage"`
-	Type     string    `json:"type"`
-	Level    string    `json:"level"` // TODO: Should be enum
-	Data     string    `json:"data"`
+	ID      string    `json:"id"`
+	Time    time.Time `json:"time"`
+	User    User      `json:"user"`
+	Project Project   `json:"project"`
+	Type    string    `json:"type"`
+	Level   string    `json:"level"` // TODO: Should be enum
+	Data    string    `json:"data"`
 }
 
 func NewEvent() *Event {
@@ -25,7 +24,7 @@ func NewEvent() *Event {
 }
 
 func (e *Event) String() string {
-	return fmt.Sprintf("%s: %s.%s '%s': %s [%s] %s", e.Time.Format(time.RFC3339), e.EnvName, e.EnvStage, &e.User, e.Level, e.Type, e.Data)
+	return fmt.Sprintf("%s: %s '%s': %s [%s] %s", e.Time.Format(time.RFC3339), &e.Project, &e.User, e.Level, e.Type, e.Data)
 }
 
 func (e *Event) Emit() {

@@ -23,8 +23,7 @@ func makeEvent(str string, conf *tg.Conf) *tg.Event {
 
 	e.User = conf.GetByUsername(split[2])
 	env := strings.SplitN(split[3], ".", 2)
-	e.EnvName = env[0]
-	e.EnvStage = env[1]
+	e.Project = tg.MakeProject(env[0], "deploy-log", env[1])
 	e.Type = split[4]
 	e.Data = split[5]
 	e.Level = "info"

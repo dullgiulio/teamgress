@@ -13,8 +13,7 @@ func makeEvent(conf *tg.Conf) *tg.Event {
 	e.ID = "deadbeef"
 	e.Time = time.Now()
 	e.User = *conf.Users[0]
-	e.EnvName = "test-service"
-	e.EnvStage = "staging"
+	e.Project = tg.MakeProject("test-project", "test-service", "testing-stage")
 	e.Type = "testing"
 	e.Data = "Just a simple\ntest"
 	e.Level = "info"
