@@ -1,19 +1,22 @@
 package libteamgress
 
+import (
+	"fmt"
+)
+
 type User struct {
-	Name      string `json:"name"`
-	UnixName  string `json:"unix"`
-	OtherName string `json:"other"`
-	Avatar    string `json:"avatar"`
+	Key    string `json:"key"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar"`
 }
 
 func (u *User) String() string {
-	return u.Name
+	return fmt.Sprintf("\"%s\" (%s)", u.Name, u.Key)
 }
 
 func (c *Conf) _indexByUsername() {
 	for _, u := range c.Users {
-		c.indexUsername[u.UnixName] = u
+		c.indexUsername[u.Key] = u
 	}
 }
 

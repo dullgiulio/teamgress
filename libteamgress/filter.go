@@ -6,9 +6,9 @@ import (
 
 type Filter func(Event) bool
 
-func GetByUser(user string) Filter {
+func GetByUser(key string) Filter {
 	return func(e Event) bool {
-		return e.User.UnixName == user
+		return e.User.Key == key
 	}
 }
 

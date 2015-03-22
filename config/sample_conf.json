@@ -1,5 +1,5 @@
 {
 	"users": [
-		{ "name": "Giulio Iotti", "unix": "giotti", "other": "giulio.iotti", "avatar": "http://jira.interal/secure/useravatar?ownerId=giulio.iotti" }
+		{ "key": "giotti", "name": "Giulio Iotti", "avatar": "http://jira.interal/secure/useravatar?ownerId=giulio.iotti" }
 	]
 }
