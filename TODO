@@ -1,7 +1,7 @@
-* Controller exports to stdout 
 * Controller exports websocket and REST interface
 * Informative logging
 * GC can be configured to dump to file
 * Shutting down the server can dump all to file
 * Flags for main binary
+* Integrate monator
 * Integrate TYPO3 log cat
