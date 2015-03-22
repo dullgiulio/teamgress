@@ -33,7 +33,7 @@ func printEvents(s *tg.Store) {
 }
 
 func main() {
-	if len(os.Args) < 1 {
+	if len(os.Args) <= 1 {
 		log.Fatal("Must specify a configuration file.")
 	}
 
