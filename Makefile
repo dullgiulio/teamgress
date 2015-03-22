@@ -4,6 +4,11 @@ BINS=tg-agent-deploy-log \
 	 tg-agent-test \
 	 tg-controller-term \
 	 tg-controller-websocket
+PKGDEPS=github.com/ActiveState/tail \
+		golang.org/x/net/websocket
+#	github.com/GeertJohan/go.rice \
+#	github.com/elazarl/go-bindata-assetfs \
+#	github.com/jteeuwen/go-bindata
 
 all: clean vet fmt build
 
@@ -11,6 +16,8 @@ build: libteamgress $(BINS)
 
 clean:
 	rm -f $(BINDIR)/*
+
+deps: $(PKGDEPS)
 
 fmt:
 	go fmt $(PKG)/...
@@ -24,4 +31,7 @@ libteamgress:
 $(BINS):
 	go build -o $(BINDIR)/$@ $(PKG)/$@
 
-.PHONY: all build clean fmt vet libteamgress $(BINS)
+$(PKGDEPS):
+	go get -u $@
+
+.PHONY: all deps build clean fmt vet libteamgress $(BINS) $(PKGDEPS)
