@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
-    "time"
+	"time"
 
 	tg "github.com/dullgiulio/teamgress/libteamgress"
 )
@@ -15,18 +15,18 @@ func printEvents(s *tg.Store) {
 	filter := tg.GetFromTime(time.Now())
 	listener := s.Subscribe(eventsCh, filter)
 
-    interruptCh := make(chan os.Signal)
-    signal.Notify(interruptCh, os.Interrupt)
+	interruptCh := make(chan os.Signal)
+	signal.Notify(interruptCh, os.Interrupt)
 
 	go func() {
 		<-interruptCh
-        s.Cancel(listener)
-	    
-        // Exit successfully.
-        os.Exit(1)
-    }()
+		s.Cancel(listener)
 
-    // Just print the received events back to stdout.
+		// Exit successfully.
+		os.Exit(1)
+	}()
+
+	// Just print the received events back to stdout.
 	for e := range eventsCh {
 		fmt.Printf("%s\n", e.ToJSON())
 	}
@@ -46,11 +46,11 @@ func main() {
 	store := tg.NewStore(conf)
 
 	// Read events from stdin.
-    go tg.ReadJSONEvents(os.Stdin, evs)
+	go tg.ReadJSONEvents(os.Stdin, evs)
 
 	// Listen to events. Never returns.
 	go store.Listen(evs)
 
-    printEvents(store)
+	printEvents(store)
 	os.Exit(1)
 }

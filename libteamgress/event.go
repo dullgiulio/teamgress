@@ -1,11 +1,11 @@
 package libteamgress
 
 import (
+	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
-    "bufio"
-    "log"
-    "fmt"
+	"log"
 	"time"
 )
 
@@ -54,24 +54,24 @@ func EventFromJSON(data []byte) (*Event, error) {
 
 // Read from reader and generate generate events on channel
 func ReadJSONEvents(r io.Reader, eventsCh chan<- Event) {
-    defer close(eventsCh)
+	defer close(eventsCh)
 
-    reader := bufio.NewReader(r)
+	reader := bufio.NewReader(r)
 
-    for {
-        text, err := reader.ReadBytes('\n')
+	for {
+		text, err := reader.ReadBytes('\n')
 
-        switch err {
-        case io.EOF:
-            break
-        case nil:
-            e, err := EventFromJSON(text)
+		switch err {
+		case io.EOF:
+			break
+		case nil:
+			e, err := EventFromJSON(text)
 
-            if err != nil {
-                log.Print(err)
-            } else {
-                eventsCh <- *e
-            }
-        }
-    }
+			if err != nil {
+				log.Print(err)
+			} else {
+				eventsCh <- *e
+			}
+		}
+	}
 }
