@@ -1,203 +1,111 @@
 package libteamgress
 
 import (
-	"sort"
-	"sync"
 	"time"
 )
 
-type Listener struct {
-	accept Filter
-	ch     chan<- Event
-}
-
 type Store struct {
-	buckets     map[int64][]Event
-	conf        *Conf
-	mux         *sync.Mutex
-	Listeners   map[*Listener]struct{}
-	ListenersCh chan *Listener
-	eventsCh    chan Event
-	timeout     time.Duration
-	bucketSecs  int64
-	bucketMax   int
+	buckets          *buckets
+	conf             *Conf
+	listeners        map[*listener]struct{}
+	cancelListenerCh chan *listener
+	addListenerCh    chan *listener
+	eventsCh         chan Event
+	timeout          time.Duration
+	bucketSecs       int64
+	bucketMax        int
 }
 
 func NewStore(conf *Conf) *Store {
 	s := &Store{
-		mux:         &sync.Mutex{},
-		conf:        conf,
-		buckets:     make(map[int64][]Event, 0),
-		Listeners:   make(map[*Listener]struct{}),
-		ListenersCh: make(chan *Listener),
-		eventsCh:    make(chan Event, 5),    // Can use some buffering here.
-		timeout:     time.Millisecond * 500, // TODO: From config
-		bucketSecs:  3600,                   // TODO: From config
-		bucketMax:   24,                     // TODO: From config
+		conf:             conf,
+		listeners:        make(map[*listener]struct{}),
+		cancelListenerCh: make(chan *listener),
+		addListenerCh:    make(chan *listener),
+		eventsCh:         make(chan Event, 5),    // Can use some buffering here.
+		timeout:          time.Millisecond * 500, // TODO: From config
 	}
 
-	// Remove listeners when the are cancelled.
-	go s.handleCancelled()
-	// Broadcast events to all listeners.
-	go s.broadcast()
+	// Take seconds to rotate buckets and buckets to keep from config.
+	s.buckets = newBuckets(3600, 24)
+
+	go s.handlerLoop()
 
 	return s
 }
 
-func (s *Store) Cancel(l *Listener) {
-	s.ListenersCh <- l
-}
-
-func (s *Store) broadcast() {
-	for e := range s.eventsCh {
-		s.mux.Lock()
-
-		for l, _ := range s.Listeners {
-			// The storage will be locked for s.timeout * len(s.Listeners) at max.
-			l.emitEvent(e, s.timeout)
-		}
-
-		s.mux.Unlock()
-	}
-}
-
-func (s *Store) handleCancelled() {
-	for l := range s.ListenersCh {
-		s.mux.Lock()
-		delete(s.Listeners, l)
-		s.mux.Unlock()
-
-		close(l.ch)
-	}
-}
-
-func (s *Store) _deleteOldest() {
-	keys := s._bucketsKeys()
-
-	if len(keys) > s.bucketMax {
-		key := keys[0]
-		s.buckets[key] = nil
-		delete(s.buckets, key)
-	}
-}
-
-func (s *Store) addToBucket(e Event) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	eTime := e.Time.Unix()
-	key := eTime - (eTime % s.bucketSecs)
-
-	if _, found := s.buckets[key]; !found {
-		s._deleteOldest()
-		s.buckets[key] = make([]Event, 0)
-	}
-
-	s.buckets[key] = append(s.buckets[key], e)
-}
-
-func (s *Store) getBucket(key int64) (t []Event) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	if events, found := s.buckets[key]; found {
-		t = make([]Event, len(events))
-		copy(t, events)
-	}
-
-	return t
-}
-
-func (s *Store) Listen(evs <-chan Event) {
-	for e := range evs {
-		// Copy the event in the Store
-		s.addToBucket(e)
-
-		s.eventsCh <- e
-	}
-}
-
-func (s *Store) addListener(l *Listener) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	s.Listeners[l] = struct{}{}
-}
-
-func (s *Store) _bucketsKeys() (keys []int64) {
-	keys = make([]int64, len(s.buckets))
-	i := 0
-
-	for k, _ := range s.buckets {
-		keys[i] = k
-		i += 1
-	}
-
-	sort.Sort(Int64Slice(keys))
-
-	return keys
-}
-
-func (s *Store) bucketsKeys() []int64 {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
-	return s._bucketsKeys()
-}
-
-func (l *Listener) emitEvent(event Event, timeout time.Duration) {
-	if l.accept(event) {
-		// A client can only listen to a s.timeout periond of time
-		// or it will be skipped. The storage will be locked for
-		// s.timeout * len(s.Listeners) at max.
-		select {
-		case l.ch <- event:
-		case <-time.After(timeout):
-		}
-	}
-}
-
-func (s *Store) startListener(l *Listener) {
-	bucketsKeys := s.bucketsKeys()
-
-	for _, key := range bucketsKeys {
-		events := s.getBucket(key)
-
-		if events == nil {
-			continue
-		}
-
-		for _, e := range events {
-			l.emitEvent(e, s.timeout)
-		}
-	}
-
-	s.addListener(l)
-}
-
-func (s *Store) Subscribe(evs chan<- Event, accept Filter) *Listener {
-	l := &Listener{
-		ch:     evs,
-		accept: accept,
-	}
+// Get a stream of all events that match the accept filter.
+func (s *Store) Subscribe(evs chan<- Event, accept Filter) *listener {
+	l := newListener(evs, accept)
 
 	go s.startListener(l)
 
 	return l
 }
 
-type Filter func(Event) bool
+// Import events in the store
+func (s *Store) Listen(evs <-chan Event) {
+	for e := range evs {
+		// Copy the event in the Store
+		s.buckets.add(e)
 
-func GetByUser(user string) Filter {
-	return func(e Event) bool {
-		return e.User.UnixName == user
+		s.eventsCh <- e
 	}
 }
 
-func GetFromTime(time time.Time) Filter {
-	unixTime := time.Unix()
+// Cancel a listener (will close its channel)
+func (s *Store) Cancel(l *listener) {
+	s.cancelListenerCh <- l
+}
 
-	return func(e Event) bool {
-		return e.Time.Unix() >= unixTime
+// Main loop to handle all events
+func (s *Store) handlerLoop() {
+	for {
+		select {
+		case e := <-s.eventsCh:
+			s.broadcast(e)
+		case l := <-s.cancelListenerCh:
+			delete(s.listeners, l)
+			close(l.ch)
+		case l := <-s.addListenerCh:
+			s.listeners[l] = struct{}{}
+		}
 	}
+}
+
+// Broadcast events to all listeners.
+func (s *Store) broadcast(e Event) {
+	for l, _ := range s.listeners {
+		// The storage will be locked for s.timeout * len(s.listeners) at max.
+		l.emitEvent(e, s.timeout)
+	}
+}
+
+// Add a listener to all incoming events.
+func (s *Store) addListener(l *listener) {
+	s.addListenerCh <- l
+}
+
+// A new listener will receive all old messages (filtered) and new ones.
+func (s *Store) startListener(l *listener) {
+	bucketsKeys := s.buckets.keys()
+
+	// Copy one bucket at a time
+	for _, key := range bucketsKeys {
+		events := s.buckets.get(key)
+
+		// This bucket might have been garbage collected
+		// while we are sending.
+		if events == nil {
+			continue
+		}
+
+		// Emit all events in this bucket
+		for _, e := range events {
+			l.emitEvent(e, s.timeout)
+		}
+	}
+
+	// Receive future events by listening
+	s.addListener(l)
 }

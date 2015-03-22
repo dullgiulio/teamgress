@@ -1,7 +1,6 @@
 * Controller exports to stdout 
 * Controller exports websocket and REST interface
 * Informative logging
-* Async garbage collection per bucket
 * GC can be configured to dump to file
 * Shutting down the server can dump all to file
 * Flags for main binary
