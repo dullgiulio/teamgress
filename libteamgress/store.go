@@ -43,14 +43,9 @@ func (s *Store) Subscribe(evs chan<- Event, accept Filter) *listener {
 	return l
 }
 
-// Import events in the store
-func (s *Store) Listen(evs <-chan Event) {
-	for e := range evs {
-		// Copy the event in the Store
-		s.buckets.add(e)
-
-		s.eventsCh <- e
-	}
+// Import an event in the store
+func (s *Store) Add(e Event) {
+	s.eventsCh <- e
 }
 
 // Cancel a listener (will close its channel)
@@ -63,6 +58,7 @@ func (s *Store) handlerLoop() {
 	for {
 		select {
 		case e := <-s.eventsCh:
+			s.buckets.add(e)
 			s.broadcast(e)
 		case l := <-s.cancelListenerCh:
 			delete(s.listeners, l)

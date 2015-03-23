@@ -52,9 +52,7 @@ func EventFromJSON(data []byte) (*Event, error) {
 }
 
 // Read from reader and generate generate events on channel
-func ReadJSONEvents(r io.Reader, eventsCh chan<- Event) {
-	defer close(eventsCh)
-
+func ReadJSONEvents(r io.Reader, store *Store) {
 	reader := bufio.NewReader(r)
 
 	for {
@@ -69,7 +67,7 @@ func ReadJSONEvents(r io.Reader, eventsCh chan<- Event) {
 			if err != nil {
 				log.Print(err)
 			} else {
-				eventsCh <- *e
+				store.Add(*e)
 			}
 		}
 	}

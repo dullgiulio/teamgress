@@ -37,24 +37,14 @@ func main() {
 	conf := tg.NewConf()
 	conf.LoadFile(os.Args[1])
 
-	evs := make(chan tg.Event)
-
 	// Start store handler.
 	store := tg.NewStore(conf)
 
-	go tg.ReadJSONEvents(os.Stdin, evs)
+	go tg.ReadJSONEvents(os.Stdin, store)
 
 	// Example of handler.
-	go func() {
-		for {
-			_test(store)
-			<-time.After(2 * time.Second)
-		}
-	}()
-
-	// Listen to events. Never returns.
-	// XXX: This can go in the background; the main thread will handle the connections.
-	store.Listen(evs)
-
-	os.Exit(1)
+	for {
+		_test(store)
+		<-time.After(2 * time.Second)
+	}
 }

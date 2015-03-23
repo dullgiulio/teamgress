@@ -40,16 +40,11 @@ func main() {
 	conf := tg.NewConf()
 	conf.LoadFile(os.Args[1])
 
-	evs := make(chan tg.Event)
-
 	// Start store handler.
 	store := tg.NewStore(conf)
 
 	// Read events from stdin.
-	go tg.ReadJSONEvents(os.Stdin, evs)
-
-	// Listen to events. Never returns.
-	go store.Listen(evs)
+	go tg.ReadJSONEvents(os.Stdin, store)
 
 	printEvents(store)
 	os.Exit(1)
