@@ -2,6 +2,7 @@ package libteamgress
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,10 @@ type Event struct {
 
 func NewEvent() *Event {
 	return &Event{}
+}
+
+func (e *Event) Size() int {
+	return binary.Size(e)
 }
 
 func (e *Event) String() string {

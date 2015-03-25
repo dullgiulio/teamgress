@@ -6,18 +6,21 @@ import (
 )
 
 type buckets struct {
-	buckets map[int64][]Event
-	mux     *sync.Mutex
-	secs    int64
-	max     int
+	buckets     map[int64][]Event
+	mux         *sync.Mutex
+	key         int64
+	size        int64
+	maxSize     int64
+	maxNumber   int
+	currentSize int64
 }
 
-func newBuckets(secs int64, max int) *buckets {
+func newBuckets(maxBucketSize int64, nBuckets int) *buckets {
 	return &buckets{
-		buckets: make(map[int64][]Event, 0),
-		mux:     &sync.Mutex{},
-		secs:    secs,
-		max:     max,
+		buckets:   make(map[int64][]Event, 0),
+		mux:       &sync.Mutex{},
+		maxSize:   maxBucketSize,
+		maxNumber: nBuckets,
 	}
 }
 
@@ -25,24 +28,28 @@ func (b *buckets) add(e Event) {
 	b.mux.Lock()
 	defer b.mux.Unlock()
 
-	eTime := e.Time.Unix()
-	key := eTime - (eTime % b.secs)
+	esize := int64(e.Size())
+	b.currentSize += esize
 
-	if _, found := b.buckets[key]; !found {
-		b._trim()
-		b.buckets[key] = make([]Event, 0)
+	if b.currentSize > b.maxSize {
+		b.key += 1
+
+		b._trim(b.key - int64(b.maxNumber))
+		b.buckets[b.key] = make([]Event, 0)
 	}
 
-	b.buckets[key] = append(b.buckets[key], e)
+	b.buckets[b.key] = append(b.buckets[b.key], e)
 }
 
-func (b *buckets) _trim() {
+func (b *buckets) _trim(lowKey int64) {
 	keys := b._keys()
 
-	if len(keys) > b.max {
-		key := keys[0]
-		b.buckets[key] = nil
-		delete(b.buckets, key)
+	for _, k := range keys {
+		if k < lowKey {
+			key := keys[0]
+			b.buckets[key] = nil
+			delete(b.buckets, key)
+		}
 	}
 }
 

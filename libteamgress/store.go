@@ -26,8 +26,8 @@ func NewStore(conf *Conf) *Store {
 		timeout:          time.Millisecond * 500, // TODO: From config
 	}
 
-	// Take seconds to rotate buckets and buckets to keep from config.
-	s.buckets = newBuckets(3600, 24)
+	// Save data in buckets of 1k, keep max 10 buckets.
+	s.buckets = newBuckets(1024*1024, 10)
 
 	go s.handlerLoop()
 
