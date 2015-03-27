@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	tg "github.com/dullgiulio/teamgress/libteamgress"
+	tg "github.com/dullgiulio/teamgress"
 )
 
 // TODO: Implement this as a WebSocket handler.

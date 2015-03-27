@@ -26,7 +26,7 @@ vet:
 	go vet $(PKG)/...
 
 libteamgress:
-	go build $(PKG)/libteamgress
+	go build $(PKG)
 
 $(BINS):
 	go build -o $(BINDIR)/$@ $(PKG)/$@

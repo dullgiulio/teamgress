@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ActiveState/tail"
-	tg "github.com/dullgiulio/teamgress/libteamgress"
+	tg "github.com/dullgiulio/teamgress"
 )
 
 func makeEvent(str string, conf *tg.Conf) *tg.Event {

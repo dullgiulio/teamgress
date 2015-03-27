@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"time"
 
-	tg "github.com/dullgiulio/teamgress/libteamgress"
+	tg "github.com/dullgiulio/teamgress"
 )
 
 func printEvents(s *tg.Store) {

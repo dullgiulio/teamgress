@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	tg "github.com/dullgiulio/teamgress/libteamgress"
+	tg "github.com/dullgiulio/teamgress"
 )
 
 func makeEvent(conf *tg.Conf) *tg.Event {

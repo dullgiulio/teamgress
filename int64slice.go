@@ -1,4 +1,4 @@
-package libteamgress
+package teamgress
 
 type Int64Slice []int64
 
