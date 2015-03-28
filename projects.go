@@ -1,4 +1,4 @@
-package teamgress
+package libteamgress
 
 import (
 	"fmt"
@@ -6,10 +6,10 @@ import (
 
 type Project struct {
 	Name    string `json:"name"`
-	Service string `json:"service,omitempty"`
+	Service string `json:"type,omitempty"`
 	Stage   string `json:"stage,omitempty"`
 	Server  string `json:"server,omitempty"`
-	Avatar  string `json:"stage,omitempty"`
+	Avatar  string `json:"avatar,omitempty"`
 }
 
 func MakeProject(name, service, stage string) Project {
@@ -21,5 +21,5 @@ func MakeProject(name, service, stage string) Project {
 }
 
 func (p *Project) String() string {
-	return fmt.Sprintf("%s/%s [%s]", p.Name, p.Service, p.Stage)
+	return fmt.Sprintf("%s[%s] %s/%s", p.Name, p.Server, p.Service, p.Stage)
 }
