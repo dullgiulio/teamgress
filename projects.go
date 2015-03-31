@@ -1,4 +1,4 @@
-package libteamgress
+package teamgress
 
 import (
 	"fmt"
